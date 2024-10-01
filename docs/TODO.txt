@@ -1,0 +1,32 @@
+YINHE TRADING ENGINE
+
+structure:
+    enum two types of orders -> goodToCancel / fillToKill
+    enum sides -> BUY / SELL
+    OrderID to search up order, uint64_t maybe or uuid but maybe slow
+
+    levelinfo structure stores price and a quantity, essentially a price and how many people are willing to buy at price
+
+    store bids and asks as vectors of levelinfo
+
+    store bids and asks in struct or class
+
+    order class:
+        takes a type of order (side), orderid to distinguish order, price, and quantity
+        also stores the initial and remaining quantity so we know when it is filled
+        methods: Fill to fill order. 
+
+    Orderpointer
+        shared pointer to an order obj.
+
+    Trade info struct :
+        stores orderid, price and quantity
+
+    Trade class:
+        stores tradeinfo of bid and ask
+
+    Orderbook class:
+        store 
+
+
+
