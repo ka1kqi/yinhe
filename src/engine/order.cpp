@@ -1,15 +1,15 @@
 #include <iostream>
 
-#include <types.h>
-#include "order.h"
+#include "types.hpp"
+#include "order.hpp"
 
-Order::Order(side side_, OrderID orderId_, Price price_, Quantity quantity_) :
-    order_side{side_},
+Order::Order(Side side_, OrderID orderId_, Price price_, Quantity quantity_) :
+    order_side(side_),
     id(orderId_),
     price(price_),
     quantity(quantity_) {};
 
-side Order::get_order_side() {
+Side Order::get_order_side() {
     return order_side;
 }
 

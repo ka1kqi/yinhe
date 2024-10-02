@@ -2,12 +2,14 @@
 #define YINHE_SRC_ENGINE_ORDER_H
 
 #include <cstdint>
-#include <side.h>
-#include <types.h>
+#include <enums.hpp>
+#include <types.hpp>
+
+using Side = side;
 
 class Order {
 public:
-    Order(side side_, OrderID orderId_, Price price_, Quantity quantity_);
+    Order(Side side_, OrderID orderId_, Price price_, Quantity quantity_);
     
     side get_order_side();
 
@@ -18,7 +20,7 @@ public:
     Quantity get_order_quantity();
 
 private:
-    side order_side;
+    Side order_side;
     OrderID id;
     Price price;
     Quantity quantity;

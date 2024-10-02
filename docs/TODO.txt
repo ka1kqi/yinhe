@@ -1,5 +1,8 @@
 YINHE TRADING ENGINE
 
+TODO:
+    add cURL as dependency/ required library
+
 structure:
     enum two types of orders -> goodToCancel / fillToKill
     enum sides -> BUY / SELL
