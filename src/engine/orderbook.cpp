@@ -2,7 +2,8 @@
 
 #include "order.hpp"
 #include "orderbook.hpp"
-#include "tradeUtils/trade.hpp"
+#include "trade.hpp"
+#include "orderLog.hpp"
 
 //need to cancel goodforday orders if its the end of the day
 /*check simulation tick*/

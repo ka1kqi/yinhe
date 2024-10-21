@@ -4,6 +4,7 @@
 
 #include "types.hpp"
 #include "order.hpp"
+#include "orderLog.hpp"
 
 Order::Order(Side side_, OrderID orderId_, Price price_, Quantity quantity_) :
     order_side(side_),
@@ -41,6 +42,6 @@ bool Order::isFilled() {
 
 void Order::fill(Quantity quantity) {
     if(quantity > remain_quantity) 
-        //throw std::logic_error("Order cannot be filled");
+        throw std::logic_error("Order cannot be filled");
     remain_quantity -= quantity;
 }
