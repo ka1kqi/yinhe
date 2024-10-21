@@ -5,8 +5,24 @@
 #include "trade.hpp"
 #include "orderLog.hpp"
 
-//need to cancel goodforday orders if its the end of the day
+/*change to false if you don't want to create log files when testing*/
+
+constexpr bool ENABLE_LOGGER = false;
+
+//cancel goodforday orders if its the end of the day
 /*check simulation tick*/
+/*TODO FINISH*/
+
+/*intialize orderbook with optional logfile location specifier*/
+Orderbook::Orderbook(std::string logfile_location = NULL) {
+    OrderbookLogger Logger;
+    if(!logfile_location.empty())
+        Logger.set_logfile_save_location(logfile_location);
+    Logger.flush_log_Dir();
+    Logger.init_Log();
+}
+
+
 Trades Orderbook::match() {
     Trades trades;
     /*reserve size in case we can match all orders for no memory problems later on*/
@@ -26,6 +42,7 @@ Trades Orderbook::match() {
             auto bid = bids.front();
             auto ask = asks.front();
 
+            /*we can trade at most the minimum quantity between the two orders*/
             Quantity trade_quantity = std::min(bid->get_remaining_quantity(),ask->get_remaining_quantity());
             bid->fill(trade_quantity);
             ask->fill(trade_quantity);
@@ -38,10 +55,14 @@ Trades Orderbook::match() {
                 asks.pop_front();
                 orders_.erase(ask->get_order_id());
             }
-            /*trade is settled at ask price if the bid price is higher than ask*/
+
+            /*trade is settled at ask price if the bid price is higher than ask for simplicity*/
             /*push the new trade to the back of the trades vector*/
             trades.push_back(Trade(tradeInfo{bid->get_order_id(),ask_price,trade_quantity},
                                     tradeInfo{ask->get_order_id(),ask_price,trade_quantity}));
+            
+            if(ENABLE_LOGGER)
+                logger.log_Trade(&trades.back(),last_sim_tick);
         }
         if(bids.empty()) /*erase current price level if there are no more orders at the level*/
             bids_.erase(bid_price);
@@ -49,13 +70,22 @@ Trades Orderbook::match() {
             asks_.erase(ask_price);
     }
     /*prune fill and kill / fill or kill orders*/
+
+    /*TODO*/
     return trades;
 }
 
+/*TODO*/
 bool Orderbook::can_fully_fill(Side side, Price price, Quantity quantity) {
-    if(!can_match(side,price))
+    if(!can_match(side,price)) /*if we can't match prices then we don't worry about fully filling*/
         return false;
-    
+
+    if(side == Side::BUY) {
+        
+    }
+    else {
+
+    }
 }
 
 bool Orderbook::can_match(Side side, Price price) {
@@ -76,6 +106,8 @@ bool Orderbook::can_match(Side side, Price price) {
     }
     return true;
 }
+
+
 
 std::size_t Orderbook::get_size(){
     return orders_.size();
@@ -110,11 +142,12 @@ OrderbookLevelInfos Orderbook::get_levelInfos(){
 /*print levels of the orderbook*/
 void Orderbook::print_levels() {
     auto orderbook_level_infos = get_levelInfos();
-    uint32_t idx = 0; /*keep track of how many levels there are to organize printing*/
+    uint32_t current_price_level_idx = 0; /*keep track of how many levels there are to organize printing*/
     auto& bids = orderbook_level_infos.get_bids();
     auto& asks = orderbook_level_infos.get_asks();
 
     while(!asks.empty() && !bids.empty()) {
 
     }
-}
+} 
+

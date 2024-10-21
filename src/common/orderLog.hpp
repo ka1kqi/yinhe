@@ -33,7 +33,7 @@ public:
 
     void init_Log() {
         logfile_location = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION + logfile_name : 
-                                                                       CUSTOM_LOGFILE_SAVE_LOCATION + logfile_name;
+                                                                  CUSTOM_LOGFILE_SAVE_LOCATION + logfile_name;
         logFile = std::ofstream(logfile_location,std::ios::app);
         if(!logFile.is_open()) {
             std::cerr << "Error opening logger file, exiting program" << std::endl;
@@ -47,9 +47,9 @@ public:
 
     void log_message(std::string message, SimTick simulation_tick_time) {
         logFile = std::ofstream(logfile_location,std::ios::app);
-        logFile << "-----------------------------------------------------------" << std::endl;
+        logFile << "\n-----------------------------------------------------------" << std::endl;
         logFile << std::to_string(simulation_tick_time) << " | MESSAGE:\n" << message << std::endl;
-        logFile << "-----------------------------------------------------------" << std::endl;
+        logFile << "-----------------------------------------------------------\n" << std::endl;
         logFile.close();
 
     }
@@ -77,7 +77,7 @@ public:
     }
 
     /*flushes all files in log folder*/
-    void clear_log_Dir() {
+    void flush_log_Dir() {
         auto LOG_DIRECTORY = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION : CUSTOM_LOGFILE_SAVE_LOCATION;
         try {
             for(const auto& entry : fs::directory_iterator(LOG_DIRECTORY)) {
