@@ -29,7 +29,15 @@ structure:
         stores tradeinfo of bid and ask
 
     Orderbook class:
-        store 
+        store bids and asks as map<price, list of orderpointers> each
+            this way we can look up orders that match the key price
+        check if an order can be matched parameters (side, price). Doesn't need to take order object, we only need  
+            a check on whether we can match it or not. 
+
+    Generate ID
+
+    add system clock
+
 
 
 

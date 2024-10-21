@@ -13,4 +13,7 @@ using Price = std::uint32_t;
 using Quantity = std::uint32_t;
 using OrderID = std::uint64_t;
 
+/*log ticks in millisecond*/
+using SimTick = std::uint64_t;
+
 #endif
