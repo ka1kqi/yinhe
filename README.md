@@ -1,3 +1,3 @@
-# yinhe WIP
+# yinhe | WORK IN PROGRESS
 
-sim trading exchange
+trading exchange
