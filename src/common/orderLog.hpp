@@ -11,32 +11,51 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <exception>
+#include <ctime>
 #include "order.hpp"
-#include "tradeUtils/trade.hpp"
+#include "trade.hpp"
 
 using Log = std::ofstream;
+namespace fs = std::filesystem;
 
 class OrderbookLogger {
 public:
     /*TAKES A DIRECTORY*/
+    /*provided if you want to specify a new directory to store logs*/
     void set_logfile_save_location(std::string filepath) {
-        /*eventually add checking to ensure that filepath is a valid directory*/
-        if(!std::filesystem::is_directory(filepath)) {
+        if(!std::filesystem::is_directory(filepath)) { 
             std::cerr << ("Invalid filepath: provided filepath is not a directory\n");
-            std::exit(1); /*fatal exception if logfile location is wrong*/
+            std::exit(1); /*fatal error if logfile location is invalid*/
         }
         CUSTOM_LOGFILE_SAVE_LOCATION = filepath;
     }
-    void init_Log(){
-        std::string logfile_location = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION : CUSTOM_LOGFILE_SAVE_LOCATION;
+
+    void init_Log() {
+        logfile_location = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION + logfile_name : 
+                                                                       CUSTOM_LOGFILE_SAVE_LOCATION + logfile_name;
         logFile = std::ofstream(logfile_location,std::ios::app);
-        curLogTick = 0;
+        if(!logFile.is_open()) {
+            std::cerr << "Error opening logger file, exiting program" << std::endl;
+            std::exit(1); /*fatal error*/
+        }
+        lastLogTick = 0;
+        std::cout << "Log: " << logfile_name << std::endl;
         std::cout << "Log file opened " << std::endl;
-        std::cout << "Tick: " << std::to_string(curLogTick) << std::endl;
-        logFile << "Initial log" << std::endl;
+        logFile.close();
+    }
+
+    void log_message(std::string message, SimTick simulation_tick_time) {
+        logFile = std::ofstream(logfile_location,std::ios::app);
+        logFile << "-----------------------------------------------------------" << std::endl;
+        logFile << std::to_string(simulation_tick_time) << " | MESSAGE:\n" << message << std::endl;
+        logFile << "-----------------------------------------------------------" << std::endl;
+        logFile.close();
+
     }
 
     /*TAKES TRADE POINTER*/
+    /*log trade info into logfile*/
     void log_Trade(Trade *trade_,SimTick simulation_tick_time){
         const auto& bid_trade = trade_->get_bid_info();
         const auto& ask_trade = trade_->get_ask_info();
@@ -45,19 +64,52 @@ public:
                     " | " << std::to_string(ask_trade.quantity_) << std::endl;
     }
 
+    /*TODO: add exceptions to specify the error that occurs*/
     void log_order_Error(OrderID err_order_id){
         logFile << "Error with order: " << std::to_string(err_order_id);
     }
 
     void close_Log() {
+        logFile << "End logger" << std::endl;
+        logFile << "Tick: " << std::to_string(lastLogTick) << std::endl;
         logFile.close();
+        std::cout << "Closed logger" << std::endl;
+    }
+
+    /*flushes all files in log folder*/
+    void clear_log_Dir() {
+        auto LOG_DIRECTORY = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION : CUSTOM_LOGFILE_SAVE_LOCATION;
+        try {
+            for(const auto& entry : fs::directory_iterator(LOG_DIRECTORY)) {
+                if(entry.is_regular_file()) {
+                    fs::remove(entry.path());
+                }
+            }
+            std::cout << "All files in logger directory have been removed" << std::endl;
+        }   
+        catch(const fs::filesystem_error& e) {
+            std::cerr << "Error: " << e.what() << " while flushing log files" << std::endl;
+        }
+        
     }
 
 private:
-    const std::string DEFAULT_LOGFILE_SAVE_LOCATION = "yinhe/docs/logs";
-    std::string CUSTOM_LOGFILE_SAVE_LOCATION;    
-    static Log logFile;
-    static SimTick curLogTick;
+    const std::string DEFAULT_LOGFILE_SAVE_LOCATION = "logs/";
+    std::string CUSTOM_LOGFILE_SAVE_LOCATION; 
+    const std::string logfile_name = generate_logfile_name();   
+    std::string logfile_location;
+    Log logFile;
+    //most recent tick time that was updated
+    SimTick lastLogTick;
+
+    /*generate a logfile name based on current system time*/
+    const std::string generate_logfile_name() const {
+        std::time_t t = std::time(0);
+        std::tm* tm_now = std::localtime(&t);
+        return "log" + std::to_string(tm_now->tm_year) + std::to_string(tm_now->tm_mon) + std::to_string(tm_now->tm_mday)
+                                + std::to_string(tm_now->tm_hour) + std::to_string(tm_now->tm_min) + std::to_string(tm_now->tm_sec) + ".log";
+        /*precision to the nearest second*/
+    }
 };
 
 /*need to add mutex support eventually to prevent concurrent edits*/
