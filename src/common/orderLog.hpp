@@ -39,9 +39,9 @@ public:
             std::cerr << "Error opening logger file, exiting program" << std::endl;
             std::exit(1); /*fatal error*/
         }
+        logFile << "Log opened" << std::endl;
         lastLogTick = 0;
-        std::cout << "Log: " << logfile_name << std::endl;
-        std::cout << "Log file opened " << std::endl;
+        std::cout << "Opened: " << logfile_name << std::endl;
         logFile.close();
     }
 
@@ -85,12 +85,15 @@ public:
                     fs::remove(entry.path());
                 }
             }
-            std::cout << "All files in logger directory have been removed" << std::endl;
+            std::cout << "Removed all files in directory \"" << LOG_DIRECTORY << "\"" << std::endl;
         }   
         catch(const fs::filesystem_error& e) {
             std::cerr << "Error: " << e.what() << " while flushing log files" << std::endl;
         }
-        
+    }
+
+    std::string get_logfile_location() {
+        return (logfile_location.empty()) ? NULL : logfile_location;
     }
 
 private:

@@ -7,19 +7,28 @@
 
 /*change to false if you don't want to create log files when testing*/
 
-constexpr bool ENABLE_LOGGER = false;
+constexpr bool ENABLE_LOGGER = true;
+constexpr bool CLEAR_LOGS_ON_INIT = true;
 
 //cancel goodforday orders if its the end of the day
 /*check simulation tick*/
 /*TODO FINISH*/
 
-/*intialize orderbook with optional logfile location specifier*/
-Orderbook::Orderbook(std::string logfile_location = NULL) {
-    OrderbookLogger Logger;
-    if(!logfile_location.empty())
+/*intialize orderbook with optional logfile with optional location specifier*/
+Orderbook::Orderbook() {
+    std::cout << "Initializing OrderbookLogger" << std::endl;
+    if(ENABLE_LOGGER){
+        if(CLEAR_LOGS_ON_INIT)
+            Logger.flush_log_Dir();
+        Logger.init_Log();
+    }
+}
+
+Orderbook::Orderbook(std::string logfile_location) {
+    if(ENABLE_LOGGER) {
         Logger.set_logfile_save_location(logfile_location);
-    Logger.flush_log_Dir();
-    Logger.init_Log();
+        Orderbook();
+    }
 }
 
 
@@ -62,7 +71,7 @@ Trades Orderbook::match() {
                                     tradeInfo{ask->get_order_id(),ask_price,trade_quantity}));
             
             if(ENABLE_LOGGER)
-                logger.log_Trade(&trades.back(),last_sim_tick);
+                Logger.log_Trade(&trades.back(),last_sim_tick);
         }
         if(bids.empty()) /*erase current price level if there are no more orders at the level*/
             bids_.erase(bid_price);
@@ -70,8 +79,16 @@ Trades Orderbook::match() {
             asks_.erase(ask_price);
     }
     /*prune fill and kill / fill or kill orders*/
-
+    /*if fill and kill at the beinning then we need to remove*/
     /*TODO*/
+
+    if(!bids_.empty()) {
+
+    }
+    if(!asks_.empty()){
+        
+    }
+
     return trades;
 }
 
@@ -86,6 +103,7 @@ bool Orderbook::can_fully_fill(Side side, Price price, Quantity quantity) {
     else {
 
     }
+    return true;
 }
 
 bool Orderbook::can_match(Side side, Price price) {
@@ -123,7 +141,7 @@ uint32_t Orderbook::get_level_quantity(Side side, Price price) {
     return side_total_quantity;
 }
 
-OrderbookLevelInfos Orderbook::get_levelInfos(){
+[[nodiscard]] OrderbookLevelInfos Orderbook::get_levelInfos(){
     levelInfos bidInfos,askInfos;
     bidInfos.reserve(orders_.size());
     askInfos.reserve(orders_.size());

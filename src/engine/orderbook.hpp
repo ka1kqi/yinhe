@@ -29,9 +29,9 @@ private:
 
 class Orderbook {
 public:
-
-    Orderbook(std::string logfile_location = NULL); /*default constructor constructs and initializes logger*/
-    std::size_t get_size();
+    Orderbook();
+    Orderbook(std::string logfile_location); 
+    [[nodiscard]] std::size_t get_size();
     void print_levels(); /*print levels of the orderbook*/
     int cancel_order(OrderID cancel_order_id); /*returns 0 on successful deletion, -1 if not found*/
     Order get_order(OrderID get_order_id);
@@ -48,12 +48,12 @@ private:
     std::unordered_map<OrderID, orderEntry> orders_; 
 
     Trades match(); /*matches bids and asks and returns vector of resulting trades*/
-    Trades add_order_ptr(order_ptr add_order); /*adds order to orderbook*/
+    [[nodiscard]] Trades add_order_ptr(order_ptr add_order); /*adds order to orderbook*/
     bool can_match(Side side,Price price); /*check if order can be matched, used internally for can_fully_fill()*/
     bool can_fully_fill(Side side, Price price, Quantity quantity); /*check if an order can be fully filled, for fill or kill orders*/
     uint32_t get_level_quantity(Side side, Price price);
-    OrderbookLevelInfos get_levelInfos();
-    OrderbookLogger logger;
+    [[nodiscard]] OrderbookLevelInfos get_levelInfos();
+    OrderbookLogger Logger;
     SimTick last_sim_tick;
 };
 
