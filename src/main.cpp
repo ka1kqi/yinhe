@@ -5,6 +5,9 @@
 
 int main() {
     Orderbook orderbook;
-
+    Trades trades;
+    trades = orderbook.add_order(Side::BUY,100,50);
+    
+    orderbook.print_levels();
     return 0;
 }

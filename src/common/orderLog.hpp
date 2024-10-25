@@ -39,9 +39,8 @@ public:
             std::cerr << "Error opening logger file, exiting program" << std::endl;
             std::exit(1); /*fatal error*/
         }
-        logFile << "Log opened" << std::endl;
         lastLogTick = 0;
-        std::cout << "Opened: " << logfile_name << std::endl;
+        std::cout << "Opened: " << logfile_name << " at " << logfile_location<< std::endl;
         logFile.close();
     }
 
@@ -59,9 +58,11 @@ public:
     void log_Trade(Trade *trade_,SimTick simulation_tick_time){
         const auto& bid_trade = trade_->get_bid_info();
         const auto& ask_trade = trade_->get_ask_info();
+        logFile = std::ofstream(logfile_location,std::ios::app);
         logFile << std::to_string(simulation_tick_time) << " | " << std::to_string(ask_trade.orderID_) << " | " << 
                     std::to_string(bid_trade.orderID_) << " | " << std::to_string(ask_trade.price_) << 
                     " | " << std::to_string(ask_trade.quantity_) << std::endl;
+        logFile.close();
     }
 
     /*TODO: add exceptions to specify the error that occurs*/

@@ -1,11 +1,11 @@
 #ifndef YINHE_SRC_ENGINE_ORDER_H
 #define YINHE_SRC_ENGINE_ORDER_H
 
-#include <deque>
+#include <list>
 #include <iostream>
 
-#include "enums.hpp"
 #include "types.hpp"
+#include "enums.hpp"
 
 class Order {
 public:
@@ -23,6 +23,8 @@ public:
 
     Quantity get_filled_quantity();
 
+    orderType get_order_type();
+
     bool isFilled();
 
     //return 1 if filled, -1 if error
@@ -34,9 +36,10 @@ private:
     Price price;
     Quantity init_quantity;
     Quantity remain_quantity;
+    orderType order_type;
 };
 
 using order_ptr = std::shared_ptr<Order>;
-using order_ptr_list = std::deque<order_ptr>;
+using order_ptr_list = std::list<order_ptr>;
 
 #endif

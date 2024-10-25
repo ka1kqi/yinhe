@@ -8,7 +8,7 @@
  * levelInfo price = 100, quantity = 28
 */
 struct levelInfo {
-    std::uint32_t price;
-    std::uint32_t quantity;
+    Price price;
+    Quantity quantity;
 };
 #endif
