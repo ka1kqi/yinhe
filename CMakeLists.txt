@@ -13,3 +13,15 @@ add_executable(${PROJECT_NAME} src/main.cpp)
 message(STATUS)
 add_subdirectory(src/common)
 add_subdirectory(src/engine)
+
+# Tests
+add_executable(test_can_fully_fill
+    src/tests/test_can_fully_fill.cpp
+    src/engine/order.cpp
+    src/engine/orderbook.cpp
+)
+target_include_directories(test_can_fully_fill PRIVATE
+    src/common
+    src/engine
+    src/engine/tradeUtils
+)

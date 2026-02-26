@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <exception>
 #include <ctime>
+
 #include "order.hpp"
 #include "trade.hpp"
 
@@ -32,8 +33,10 @@ public:
     }
 
     void init_Log() {
-        logfile_location = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION + logfile_name : 
-                                                                  CUSTOM_LOGFILE_SAVE_LOCATION + logfile_name;
+        auto log_dir = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION : CUSTOM_LOGFILE_SAVE_LOCATION;
+        if(!fs::exists(log_dir))
+            fs::create_directories(log_dir);
+        logfile_location = log_dir + logfile_name;
         logFile = std::ofstream(logfile_location,std::ios::app);
         if(!logFile.is_open()) {
             std::cerr << "Error opening logger file, exiting program" << std::endl;
@@ -80,6 +83,8 @@ public:
     /*flushes all files in log folder*/
     void flush_log_Dir() {
         auto LOG_DIRECTORY = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION : CUSTOM_LOGFILE_SAVE_LOCATION;
+        if(!fs::exists(LOG_DIRECTORY))
+            return;
         try {
             for(const auto& entry : fs::directory_iterator(LOG_DIRECTORY)) {
                 if(entry.is_regular_file()) {
