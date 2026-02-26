@@ -204,6 +204,23 @@ int Orderbook::cancel_order(OrderID cancel_order_id) {
   if (!orders_.count(cancel_order_id))
     return -1;
 
+  const auto &[order, itr] = orders_.at(cancel_order_id);
+  Price price = order->get_order_price();
+  Side side = order->get_order_side();
+
+  if (side == Side::BUY) {
+    auto &level = bids_.at(price);
+    level.erase(itr);
+    if (level.empty())
+      bids_.erase(price);
+  } else {
+    auto &level = asks_.at(price);
+    level.erase(itr);
+    if (level.empty())
+      asks_.erase(price);
+  }
+
+  orders_.erase(cancel_order_id);
   return 0;
 }
 
