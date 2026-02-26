@@ -1,3 +1,3 @@
-# yinhe | WORK IN PROGRESS
+# yinhe
 
 trading exchange
