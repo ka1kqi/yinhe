@@ -46,3 +46,6 @@ build/
 # CLion
 *.iml
 .idea/
+
+compile_commands.json
+.cache
