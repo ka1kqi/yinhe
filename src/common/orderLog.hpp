@@ -1,125 +1,219 @@
 #ifndef YINHE_SRC_COMMON_ORDERLOG_H
 #define YINHE_SRC_COMMON_ORDERLOG_H
 
-/*
- * logging for operations
- * We save our log as a text file
- * Keeps track of the tick of the simulation as well, incremented by 1000
- * 
-*/
-#include <string>
-#include <iostream>
-#include <fstream>
-#include <filesystem>
-#include <exception>
+#include <atomic>
+#include <condition_variable>
+#include <cstring>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <thread>
 
-#include "order.hpp"
-#include "trade.hpp"
+#include "SPSCQueue.hpp"
+#include "types.hpp"
 
-using Log = std::ofstream;
 namespace fs = std::filesystem;
+
+enum class LogEntryType : uint8_t { TRADE, MESSAGE, ERROR };
+
+struct LogEntry {
+  LogEntryType type;
+  SimTick tick;
+  OrderID id1;       // bid_id for TRADE, err_order_id for ERROR
+  OrderID id2;       // ask_id for TRADE
+  Price price;
+  Quantity quantity;
+  char message[128]; // MESSAGE type only
+};
 
 class OrderbookLogger {
 public:
-    /*TAKES A DIRECTORY*/
-    /*provided if you want to specify a new directory to store logs*/
-    void set_logfile_save_location(std::string filepath) {
-        if(!std::filesystem::is_directory(filepath)) { 
-            std::cerr << ("Invalid filepath: provided filepath is not a directory\n");
-            std::exit(1); /*fatal error if logfile location is invalid*/
+  OrderbookLogger() = default;
+
+  ~OrderbookLogger() { close_Log(); }
+
+  void set_logfile_save_location(std::string filepath) {
+    if (!fs::is_directory(filepath)) {
+      std::cerr << "Invalid filepath: provided filepath is not a directory\n";
+      std::exit(1);
+    }
+    CUSTOM_LOGFILE_SAVE_LOCATION = filepath;
+  }
+
+  void init_Log() {
+    auto log_dir = CUSTOM_LOGFILE_SAVE_LOCATION.empty()
+                       ? DEFAULT_LOGFILE_SAVE_LOCATION
+                       : CUSTOM_LOGFILE_SAVE_LOCATION;
+    if (!fs::exists(log_dir))
+      fs::create_directories(log_dir);
+    logfile_location = log_dir + logfile_name;
+    logFile.open(logfile_location, std::ios::app);
+    if (!logFile.is_open()) {
+      std::cerr << "Error opening logger file, exiting program" << std::endl;
+      std::exit(1);
+    }
+    lastLogTick = 0;
+    std::cout << "Opened: " << logfile_name << " at " << logfile_location
+              << std::endl;
+
+    // Start consumer thread
+    stop_flag_.store(false, std::memory_order_relaxed);
+    has_data_.store(false, std::memory_order_relaxed);
+    consumer_thread_ = std::thread(&OrderbookLogger::consumer_loop, this);
+  }
+
+  void log_Trade(SimTick tick, OrderID bid_id, OrderID ask_id, Price price,
+                 Quantity quantity) {
+    LogEntry entry{};
+    entry.type = LogEntryType::TRADE;
+    entry.tick = tick;
+    entry.id1 = bid_id;
+    entry.id2 = ask_id;
+    entry.price = price;
+    entry.quantity = quantity;
+    push_entry(entry);
+  }
+
+  void log_message(std::string message, SimTick simulation_tick_time) {
+    LogEntry entry{};
+    entry.type = LogEntryType::MESSAGE;
+    entry.tick = simulation_tick_time;
+    std::strncpy(entry.message, message.c_str(), sizeof(entry.message) - 1);
+    entry.message[sizeof(entry.message) - 1] = '\0';
+    push_entry(entry);
+  }
+
+  void log_order_Error(OrderID err_order_id) {
+    LogEntry entry{};
+    entry.type = LogEntryType::ERROR;
+    entry.id1 = err_order_id;
+    push_entry(entry);
+  }
+
+  void close_Log() {
+    if (!consumer_thread_.joinable())
+      return;
+
+    stop_flag_.store(true, std::memory_order_release);
+    cv_.notify_one();
+    consumer_thread_.join();
+
+    // Final drain — consumer is dead, single-thread pop is safe
+    LogEntry entry;
+    while (queue_.try_pop(entry)) {
+      write_entry(entry);
+    }
+
+    logFile << "End logger" << std::endl;
+    logFile << "Tick: " << std::to_string(lastLogTick) << std::endl;
+    logFile.close();
+    std::cout << "Closed logger" << std::endl;
+  }
+
+  void flush_log_Dir() {
+    auto LOG_DIRECTORY = CUSTOM_LOGFILE_SAVE_LOCATION.empty()
+                             ? DEFAULT_LOGFILE_SAVE_LOCATION
+                             : CUSTOM_LOGFILE_SAVE_LOCATION;
+    if (!fs::exists(LOG_DIRECTORY))
+      return;
+    try {
+      for (const auto &entry : fs::directory_iterator(LOG_DIRECTORY)) {
+        if (entry.is_regular_file()) {
+          fs::remove(entry.path());
         }
-        CUSTOM_LOGFILE_SAVE_LOCATION = filepath;
+      }
+      std::cout << "Removed all files in directory \"" << LOG_DIRECTORY << "\""
+                << std::endl;
+    } catch (const fs::filesystem_error &e) {
+      std::cerr << "Error: " << e.what() << " while flushing log files"
+                << std::endl;
     }
+  }
 
-    void init_Log() {
-        auto log_dir = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION : CUSTOM_LOGFILE_SAVE_LOCATION;
-        if(!fs::exists(log_dir))
-            fs::create_directories(log_dir);
-        logfile_location = log_dir + logfile_name;
-        logFile = std::ofstream(logfile_location,std::ios::app);
-        if(!logFile.is_open()) {
-            std::cerr << "Error opening logger file, exiting program" << std::endl;
-            std::exit(1); /*fatal error*/
-        }
-        lastLogTick = 0;
-        std::cout << "Opened: " << logfile_name << " at " << logfile_location<< std::endl;
-        logFile.close();
-    }
-
-    void log_message(std::string message, SimTick simulation_tick_time) {
-        logFile = std::ofstream(logfile_location,std::ios::app);
-        logFile << "\n-----------------------------------------------------------" << std::endl;
-        logFile << std::to_string(simulation_tick_time) << " | MESSAGE:\n" << message << std::endl;
-        logFile << "-----------------------------------------------------------\n" << std::endl;
-        logFile.close();
-
-    }
-
-    /*TAKES TRADE POINTER*/
-    /*log trade info into logfile*/
-    void log_Trade(Trade *trade_,SimTick simulation_tick_time){
-        const auto& bid_trade = trade_->get_bid_info();
-        const auto& ask_trade = trade_->get_ask_info();
-        logFile = std::ofstream(logfile_location,std::ios::app);
-        logFile << std::to_string(simulation_tick_time) << " | " << std::to_string(ask_trade.orderID_) << " | " << 
-                    std::to_string(bid_trade.orderID_) << " | " << std::to_string(ask_trade.price_) << 
-                    " | " << std::to_string(ask_trade.quantity_) << std::endl;
-        logFile.close();
-    }
-
-    /*TODO: add exceptions to specify the error that occurs*/
-    void log_order_Error(OrderID err_order_id){
-        logFile << "Error with order: " << std::to_string(err_order_id);
-    }
-
-    void close_Log() {
-        logFile << "End logger" << std::endl;
-        logFile << "Tick: " << std::to_string(lastLogTick) << std::endl;
-        logFile.close();
-        std::cout << "Closed logger" << std::endl;
-    }
-
-    /*flushes all files in log folder*/
-    void flush_log_Dir() {
-        auto LOG_DIRECTORY = CUSTOM_LOGFILE_SAVE_LOCATION.empty() ? DEFAULT_LOGFILE_SAVE_LOCATION : CUSTOM_LOGFILE_SAVE_LOCATION;
-        if(!fs::exists(LOG_DIRECTORY))
-            return;
-        try {
-            for(const auto& entry : fs::directory_iterator(LOG_DIRECTORY)) {
-                if(entry.is_regular_file()) {
-                    fs::remove(entry.path());
-                }
-            }
-            std::cout << "Removed all files in directory \"" << LOG_DIRECTORY << "\"" << std::endl;
-        }   
-        catch(const fs::filesystem_error& e) {
-            std::cerr << "Error: " << e.what() << " while flushing log files" << std::endl;
-        }
-    }
-
-    std::string get_logfile_location() {
-        return (logfile_location.empty()) ? NULL : logfile_location;
-    }
+  std::string get_logfile_location() { return logfile_location; }
 
 private:
-    const std::string DEFAULT_LOGFILE_SAVE_LOCATION = "logs/";
-    std::string CUSTOM_LOGFILE_SAVE_LOCATION; 
-    const std::string logfile_name = generate_logfile_name();   
-    std::string logfile_location;
-    Log logFile;
-    //most recent tick time that was updated
-    SimTick lastLogTick;
+  const std::string DEFAULT_LOGFILE_SAVE_LOCATION = "logs/";
+  std::string CUSTOM_LOGFILE_SAVE_LOCATION;
+  const std::string logfile_name = generate_logfile_name();
+  std::string logfile_location;
+  std::ofstream logFile;
+  SimTick lastLogTick = 0;
 
-    /*generate a logfile name based on current system time*/
-    const std::string generate_logfile_name() const {
-        std::time_t t = std::time(0);
-        std::tm* tm_now = std::localtime(&t);
-        return "log" + std::to_string(tm_now->tm_year) + std::to_string(tm_now->tm_mon) + std::to_string(tm_now->tm_mday)
-                                + std::to_string(tm_now->tm_hour) + std::to_string(tm_now->tm_min) + std::to_string(tm_now->tm_sec) + ".log";
-        /*precision to the nearest second*/
+  SPSCQueue<LogEntry> queue_;
+  std::thread consumer_thread_;
+  std::atomic<bool> stop_flag_{false};
+  std::atomic<bool> has_data_{false};
+  std::mutex mtx_;
+  std::condition_variable cv_;
+
+  void push_entry(const LogEntry &entry) {
+    while (!queue_.try_push(entry)) {
+      cv_.notify_one();
+      std::this_thread::yield();
     }
+    has_data_.store(true, std::memory_order_release);
+    cv_.notify_one();
+  }
+
+  void consumer_loop() {
+    LogEntry entry;
+    while (true) {
+      {
+        std::unique_lock<std::mutex> lock(mtx_);
+        cv_.wait(lock, [&] {
+          return has_data_.load(std::memory_order_acquire) ||
+                 stop_flag_.load(std::memory_order_acquire);
+        });
+      }
+
+      has_data_.store(false, std::memory_order_release);
+
+      // Drain all available entries
+      while (queue_.try_pop(entry)) {
+        write_entry(entry);
+      }
+
+      if (stop_flag_.load(std::memory_order_acquire))
+        break;
+    }
+    // Final drain after stop
+    while (queue_.try_pop(entry)) {
+      write_entry(entry);
+    }
+    logFile.flush();
+  }
+
+  void write_entry(const LogEntry &e) {
+    switch (e.type) {
+    case LogEntryType::TRADE:
+      logFile << e.tick << " | " << e.id1 << " | " << e.id2 << " | "
+              << e.price << " | " << e.quantity << "\n";
+      lastLogTick = e.tick;
+      break;
+    case LogEntryType::MESSAGE:
+      logFile << "\n-----------------------------------------------------------\n"
+              << e.tick << " | MESSAGE:\n"
+              << e.message
+              << "\n-----------------------------------------------------------\n\n";
+      break;
+    case LogEntryType::ERROR:
+      logFile << "Error with order: " << e.id1 << "\n";
+      break;
+    }
+  }
+
+  const std::string generate_logfile_name() const {
+    std::time_t t = std::time(0);
+    std::tm *tm_now = std::localtime(&t);
+    return "log" + std::to_string(tm_now->tm_year) +
+           std::to_string(tm_now->tm_mon) + std::to_string(tm_now->tm_mday) +
+           std::to_string(tm_now->tm_hour) + std::to_string(tm_now->tm_min) +
+           std::to_string(tm_now->tm_sec) + ".log";
+  }
 };
 
-/*need to add mutex support eventually to prevent concurrent edits*/
 #endif
