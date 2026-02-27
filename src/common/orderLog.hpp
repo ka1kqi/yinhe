@@ -2,13 +2,11 @@
 #define YINHE_SRC_COMMON_ORDERLOG_H
 
 #include <atomic>
-#include <condition_variable>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <mutex>
 #include <string>
 #include <thread>
 
@@ -61,7 +59,6 @@ public:
 
     // Start consumer thread
     stop_flag_.store(false, std::memory_order_relaxed);
-    has_data_.store(false, std::memory_order_relaxed);
     consumer_thread_ = std::thread(&OrderbookLogger::consumer_loop, this);
   }
 
@@ -98,7 +95,6 @@ public:
       return;
 
     stop_flag_.store(true, std::memory_order_release);
-    cv_.notify_one();
     consumer_thread_.join();
 
     // Final drain — consumer is dead, single-thread pop is safe
@@ -146,39 +142,33 @@ private:
   SPSCQueue<LogEntry> queue_;
   std::thread consumer_thread_;
   std::atomic<bool> stop_flag_{false};
-  std::atomic<bool> has_data_{false};
-  std::mutex mtx_;
-  std::condition_variable cv_;
 
   void push_entry(const LogEntry &entry) {
     while (!queue_.try_push(entry)) {
-      cv_.notify_one();
       std::this_thread::yield();
     }
-    has_data_.store(true, std::memory_order_release);
-    cv_.notify_one();
   }
 
   void consumer_loop() {
+    constexpr int kMaxSpins = 256;
     LogEntry entry;
+    int idle_spins = 0;
     while (true) {
-      {
-        std::unique_lock<std::mutex> lock(mtx_);
-        cv_.wait(lock, [&] {
-          return has_data_.load(std::memory_order_acquire) ||
-                 stop_flag_.load(std::memory_order_acquire);
-        });
-      }
-
-      has_data_.store(false, std::memory_order_release);
-
-      // Drain all available entries
-      while (queue_.try_pop(entry)) {
+      if (queue_.try_pop(entry)) {
         write_entry(entry);
-      }
-
-      if (stop_flag_.load(std::memory_order_acquire))
+        idle_spins = 0;
+        // Drain burst — keep popping without yielding
+        while (queue_.try_pop(entry)) {
+          write_entry(entry);
+        }
+      } else if (stop_flag_.load(std::memory_order_acquire)) {
         break;
+      } else {
+        if (++idle_spins >= kMaxSpins) {
+          std::this_thread::yield();
+          idle_spins = 0;
+        }
+      }
     }
     // Final drain after stop
     while (queue_.try_pop(entry)) {

@@ -1,0 +1,12 @@
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/CMakeFiles/yinhe.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/CMakeFiles/test_orderbook.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/CMakeFiles/test_orderbook_stress.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/CMakeFiles/bench_orderbook.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/CMakeFiles/edit_cache.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/CMakeFiles/rebuild_cache.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/src/common/CMakeFiles/edit_cache.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/src/common/CMakeFiles/rebuild_cache.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/src/engine/CMakeFiles/edit_cache.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/src/engine/CMakeFiles/rebuild_cache.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/src/engine/tradeUtils/CMakeFiles/edit_cache.dir
+/Users/kaikaidu/Documents/GitHub/yinhe/build-release/src/engine/tradeUtils/CMakeFiles/rebuild_cache.dir
