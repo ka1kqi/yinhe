@@ -8,7 +8,8 @@ enum orderType {
   FILLORKILL,   // must be fully filled immediately or cancelled entirely
   MARKET,       // execute at best available price
   GOODFORDAY,   // remains on the book until end of day
-  FILLANDKILL   // fill as much as possible immediately, cancel the rest
+  FILLANDKILL,  // fill as much as possible immediately, cancel the rest
+  LIMIT
 };
 
 #endif

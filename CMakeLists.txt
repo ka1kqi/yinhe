@@ -25,3 +25,14 @@ target_include_directories(test_can_fully_fill PRIVATE
     src/engine
     src/engine/tradeUtils
 )
+
+add_executable(test_orderbook
+    src/tests/test_orderbook.cpp
+    src/engine/order.cpp
+    src/engine/orderbook.cpp
+)
+target_include_directories(test_orderbook PRIVATE
+    src/common
+    src/engine
+    src/engine/tradeUtils
+)

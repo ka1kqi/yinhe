@@ -39,9 +39,10 @@ public:
   int cancel_order(OrderID cancel_order_id); /*returns 0 on successful deletion,
                                                 -1 if not found*/
   [[nodiscard]] Order get_order(OrderID get_order_id);
-  [[nodiscard]] Trades add_order(
-      Side side, Price price,
-      Quantity quantity); /*generates order and calls internal add_order_ptr*/
+  [[nodiscard]] Trades
+  add_order(Side side, Price price, Quantity quantity,
+            orderType type); /*generates order and calls
+                                                    internal add_order_ptr*/
 
 private:
   /*store bids and asks as a map of prices to a list of orderpointers*/

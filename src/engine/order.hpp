@@ -2,41 +2,41 @@
 #define YINHE_SRC_ENGINE_ORDER_H
 
 #include <list>
-#include <iostream>
 
-#include "types.hpp"
 #include "enums.hpp"
+#include "types.hpp"
 
 class Order {
 public:
-    Order(Side side_, OrderID orderId_, Price price_, Quantity quantity_);
-    
-    Side get_order_side();
+  Order(Side side_, OrderID orderId_, Price price_, Quantity quantity_,
+        orderType type_);
 
-    OrderID get_order_id();
-    
-    Price get_order_price();
+  Side get_order_side();
 
-    Quantity get_init_quantity();
+  OrderID get_order_id();
 
-    Quantity get_remaining_quantity();
+  Price get_order_price();
 
-    Quantity get_filled_quantity();
+  Quantity get_init_quantity();
 
-    orderType get_order_type();
+  Quantity get_remaining_quantity();
 
-    bool isFilled();
+  Quantity get_filled_quantity();
 
-    //return 1 if filled, -1 if error
-    void fill(Quantity quantity_);
+  orderType get_order_type();
+
+  bool isFilled();
+
+  // return 1 if filled, -1 if error
+  void fill(Quantity quantity_);
 
 private:
-    Side order_side;
-    OrderID id;
-    Price price;
-    Quantity init_quantity;
-    Quantity remain_quantity;
-    orderType order_type;
+  Side order_side;
+  OrderID id;
+  Price price;
+  Quantity init_quantity;
+  Quantity remain_quantity;
+  orderType order_type;
 };
 
 using order_ptr = std::shared_ptr<Order>;

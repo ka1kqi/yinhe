@@ -1,4 +1,5 @@
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <random>
 
@@ -160,19 +161,16 @@ bool Orderbook::can_match(Side side, Price price) {
   }
 }
 
-/*does something random*/
+/*generate a random order id, retries on collision*/
 const OrderID Orderbook::gen_order_id() const {
-  std::time_t t = std::time(0);
-  std::tm *tm_now = std::localtime(&t);
+  static std::mt19937_64 gen(std::random_device{}());
+  std::uniform_int_distribution<OrderID> distr(
+      1, std::numeric_limits<OrderID>::max());
 
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_int_distribution<> distr(0, 64);
-
-  OrderID ID = 1 << distr(gen);
-  ID += tm_now->tm_min + tm_now->tm_sec;
-  ID *= tm_now->tm_hour * tm_now->tm_min * tm_now->tm_sec;
-  ID = ID << distr(gen);
+  OrderID ID;
+  do {
+    ID = distr(gen);
+  } while (orders_.count(ID));
   return ID;
 }
 
@@ -191,9 +189,10 @@ const OrderID Orderbook::gen_order_id() const {
 }
 
 [[nodiscard]] Trades Orderbook::add_order(Side side, Price price,
-                                          Quantity quantity) {
+                                          Quantity quantity,
+                                          orderType type = orderType::LIMIT) {
   const auto &ID = gen_order_id();
-  Order new_order(side, ID, price, quantity);
+  Order new_order(side, ID, price, quantity, type);
   order_ptr new_order_ptr = std::make_shared<Order>(new_order);
   return add_order_ptr(new_order_ptr);
 }
@@ -260,33 +259,4 @@ uint32_t Orderbook::get_level_quantity(order_ptr_list orderbook_side) {
     askInfos.push_back(levelInfo{price, level_quantity});
   }
   return OrderbookLevelInfos(bidInfos, askInfos);
-}
-
-/*print levels of the orderbook*/
-void Orderbook::print_levels() {
-  OrderbookLevelInfos orderbook_level_infos = get_levelInfos();
-  uint32_t current_price_level_idx =
-      0; /*keep track of how many levels there are to organize printing*/
-
-  const levelInfos &bids = orderbook_level_infos.get_bids();
-  const levelInfos &asks = orderbook_level_infos.get_asks();
-
-  if (!bids.empty()) {
-    for (auto &level : bids) {
-      std::cout << "Bid Price: " << level.price
-                << " | Quantity: " << level.quantity << std::endl;
-    }
-  }
-  if (!asks.empty()) {
-    for (auto &level : asks) {
-      std::cout << "Ask Price: " << level.price
-                << " | Quantity: " << level.quantity << std::endl;
-    }
-  }
-
-  /*
-  while(!asks.empty() && !bids.empty()) {
-          break;
-  }
-  */
 }
