@@ -10,11 +10,10 @@ public:
   static void insert_order(Orderbook &ob, Side side, OrderID id, Price price,
                            Quantity qty,
                            orderType type = orderType::GOODTOCANCEL) {
-    auto order = std::make_shared<Order>(side, id, price, qty, type);
     auto &level = (side == Side::BUY) ? ob.bids_[price] : ob.asks_[price];
-    level.push_back(order);
+    level.push_back(Order(side, id, price, qty, type));
     auto it = std::prev(level.end());
-    ob.orders_.insert({id, orderEntry{order, it}});
+    ob.orders_.insert({id, orderEntry{it}});
   }
 
   /*helper: call match() directly*/

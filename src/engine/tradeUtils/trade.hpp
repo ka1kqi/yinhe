@@ -17,10 +17,10 @@ public:
         bid_(bid),
         ask_(ask) {}
 
-    tradeInfo get_bid_info() {
+    const tradeInfo& get_bid_info() const noexcept {
         return bid_;
     }
-    tradeInfo get_ask_info(){
+    const tradeInfo& get_ask_info() const noexcept {
         return ask_;
     }
 private:

@@ -1,7 +1,4 @@
 #include <iostream>
-#include <limits>
-#include <memory>
-#include <random>
 
 #include "order.hpp"
 #include "orderLog.hpp"
@@ -25,11 +22,8 @@ Orderbook::Orderbook() {
   last_sim_tick = 0;
 }
 
-Orderbook::Orderbook(std::string logfile_location) {
-  if (ENABLE_LOGGER) {
-    Logger.set_logfile_save_location(logfile_location);
-    Orderbook();
-  }
+Orderbook::Orderbook(std::string logfile_location) : Orderbook() {
+  Logger.set_logfile_save_location(logfile_location);
 }
 
 Trades Orderbook::match() {
@@ -51,22 +45,24 @@ Trades Orderbook::match() {
 
     /*match in current level until empty*/
     while (!bids.empty() && !asks.empty()) {
-      auto bid = bids.front();
-      auto ask = asks.front();
+      auto *bid = &bids.front();
+      auto *ask = &asks.front();
 
       /*reject fill or kill orders that cannot be fully filled*/
       if (bid->get_order_type() == orderType::FILLORKILL &&
-          !can_fully_fill(Side::BUY, bid->get_order_price(),
-                          bid->get_remaining_quantity())) {
+          !can_fully_fill_unchecked(Side::BUY, bid->get_order_price(),
+                                    bid->get_remaining_quantity())) {
+        OrderID bid_id = bid->get_order_id();
         bids.pop_front();
-        orders_.erase(bid->get_order_id());
+        orders_.erase(bid_id);
         continue;
       }
       if (ask->get_order_type() == orderType::FILLORKILL &&
-          !can_fully_fill(Side::SELL, ask->get_order_price(),
-                          ask->get_remaining_quantity())) {
+          !can_fully_fill_unchecked(Side::SELL, ask->get_order_price(),
+                                    ask->get_remaining_quantity())) {
+        OrderID ask_id = ask->get_order_id();
         asks.pop_front();
-        orders_.erase(ask->get_order_id());
+        orders_.erase(ask_id);
         continue;
       }
 
@@ -76,24 +72,28 @@ Trades Orderbook::match() {
       bid->fill(trade_quantity);
       ask->fill(trade_quantity);
 
+      /*capture IDs before potential destruction*/
+      OrderID bid_id = bid->get_order_id();
+      OrderID ask_id = ask->get_order_id();
+
       if (bid->isFilled()) {
         bids.pop_front();
-        orders_.erase(bid->get_order_id());
+        orders_.erase(bid_id);
       }
       if (ask->isFilled()) {
         asks.pop_front();
-        orders_.erase(ask->get_order_id());
+        orders_.erase(ask_id);
       }
 
       /*trade is settled at ask price if the bid price is higher than ask for
        * simplicity*/
       /*push the new trade to the back of the trades vector*/
-      trades.push_back(
-          Trade(tradeInfo{bid->get_order_id(), ask_price, trade_quantity},
-                tradeInfo{ask->get_order_id(), ask_price, trade_quantity}));
+      trades.push_back(Trade(tradeInfo{bid_id, ask_price, trade_quantity},
+                             tradeInfo{ask_id, ask_price, trade_quantity}));
 
       if (ENABLE_LOGGER)
-        Logger.log_Trade(&trades.back(), last_sim_tick);
+        Logger.log_Trade(last_sim_tick, bid_id, ask_id, ask_price,
+                         trade_quantity);
     }
     if (bids.empty()) /*erase current price level if there are no more orders at
                          the level*/
@@ -102,7 +102,7 @@ Trades Orderbook::match() {
       asks_.erase(ask_price);
   }
 
-  /*prune fill and kill and fill or kill orders that are not fully filled*/
+  /*prune fill and kill and fill or kill orders that are fully filled*/
   if (!bids_.empty()) {
   }
   if (!asks_.empty()) {
@@ -115,14 +115,18 @@ Trades Orderbook::match() {
 bool Orderbook::can_fully_fill(Side side, Price price, Quantity quantity) {
   if (!can_match(side, price))
     return false;
+  return can_fully_fill_unchecked(side, price, quantity);
+}
 
+bool Orderbook::can_fully_fill_unchecked(Side side, Price price,
+                                         Quantity quantity) {
   if (side == Side::BUY) {
     for (auto it = asks_.begin(); it != asks_.end(); ++it) {
       auto &[ask_price, asks] = *it;
       if (ask_price > price)
         return false;
       for (auto &order : asks) {
-        Quantity available = order->get_remaining_quantity();
+        Quantity available = order.get_remaining_quantity();
         if (available >= quantity)
           return true;
         quantity -= available;
@@ -134,7 +138,7 @@ bool Orderbook::can_fully_fill(Side side, Price price, Quantity quantity) {
       if (bid_price < price)
         return false;
       for (auto &order : bids) {
-        Quantity available = order->get_remaining_quantity();
+        Quantity available = order.get_remaining_quantity();
         if (available >= quantity)
           return true;
         quantity -= available;
@@ -150,73 +154,69 @@ bool Orderbook::can_match(Side side, Price price) {
     /*if best sell is higher than the bid price, then we can't match*/
     if (asks_.empty()) /*cannot match if there are no orders to match with*/
       return false;
-    const auto [ask, _] = *asks_.begin();
+    const auto &[ask, _] = *asks_.begin();
     return ask <= price;
   } else {
     /*we check buy orders to match a sell order*/
     if (bids_.empty())
       return false;
-    const auto [bid, _] = *bids_.begin();
+    const auto &[bid, _] = *bids_.begin();
     return bid >= price;
   }
 }
 
-/*generate a random order id, retries on collision*/
-const OrderID Orderbook::gen_order_id() const {
-  static std::mt19937_64 gen(std::random_device{}());
-  std::uniform_int_distribution<OrderID> distr(
-      1, std::numeric_limits<OrderID>::max());
+OrderID Orderbook::gen_order_id() { return ++next_order_id_; }
 
-  OrderID ID;
-  do {
-    ID = distr(gen);
-  } while (orders_.count(ID));
-  return ID;
-}
+[[nodiscard]] Trades Orderbook::add_order_ptr(Order add_order_) {
+  /*reject FOK orders that cannot be fully filled before inserting*/
+  if (add_order_.get_order_type() == orderType::FILLORKILL &&
+      !can_fully_fill(add_order_.get_order_side(), add_order_.get_order_price(),
+                      add_order_.get_remaining_quantity())) {
+    return Trades{};
+  }
 
-[[nodiscard]] Trades Orderbook::add_order_ptr(order_ptr add_order_) {
-  Side side = add_order_->get_order_side();
-  auto &v = (side == Side::BUY) ? bids_[add_order_->get_order_price()]
-                                : asks_[add_order_->get_order_price()];
-  v.push_back(add_order_);
-  /*add to orders_ map*/
-  order_ptr_list::iterator it;
-  it = std::prev(v.end());
-  orders_.insert({add_order_->get_order_id(), orderEntry{add_order_, it}});
+  Side side = add_order_.get_order_side();
+  Price price = add_order_.get_order_price();
+  OrderID id = add_order_.get_order_id();
+  auto &v = (side == Side::BUY) ? bids_[price] : asks_[price];
+  v.push_back(std::move(add_order_));
+  auto it = std::prev(v.end());
+  orders_.insert({id, orderEntry{it}});
 
   /*return matched orders*/
   return match();
 }
 
-[[nodiscard]] Trades Orderbook::add_order(Side side, Price price,
-                                          Quantity quantity,
-                                          orderType type = orderType::LIMIT) {
-  const auto &ID = gen_order_id();
-  Order new_order(side, ID, price, quantity, type);
-  order_ptr new_order_ptr = std::make_shared<Order>(new_order);
-  return add_order_ptr(new_order_ptr);
+[[nodiscard]] Trades
+Orderbook::add_order(Side side, Price price, Quantity quantity,
+                     orderType type = orderType::FILLANDKILL) {
+  const auto ID = gen_order_id();
+  return add_order_ptr(Order(side, ID, price, quantity, type));
 }
 
 /*cancel order, return 0 on successful deletion and -1 on unsuccessful
  * deletion*/
 int Orderbook::cancel_order(OrderID cancel_order_id) {
-  if (!orders_.count(cancel_order_id))
+  auto it = orders_.find(cancel_order_id);
+  if (it == orders_.end())
     return -1;
 
-  const auto &[order, itr] = orders_.at(cancel_order_id);
-  Price price = order->get_order_price();
-  Side side = order->get_order_side();
+  const auto &itr = it->second.itr;
+  Price price = itr->get_order_price();
+  Side side = itr->get_order_side();
 
   if (side == Side::BUY) {
-    auto &level = bids_.at(price);
+    auto map_it = bids_.find(price);
+    auto &level = map_it->second;
     level.erase(itr);
     if (level.empty())
-      bids_.erase(price);
+      bids_.erase(map_it);
   } else {
-    auto &level = asks_.at(price);
+    auto map_it = asks_.find(price);
+    auto &level = map_it->second;
     level.erase(itr);
     if (level.empty())
-      asks_.erase(price);
+      asks_.erase(map_it);
   }
 
   orders_.erase(cancel_order_id);
@@ -226,8 +226,13 @@ int Orderbook::cancel_order(OrderID cancel_order_id) {
 /*delete all orders*/
 void Orderbook::flush_orderbook() {
   Logger.log_message("Flushing orderbook", last_sim_tick);
-  for (auto [order, _] : orders_) {
-    cancel_order(order);
+  std::vector<OrderID> ids;
+  ids.reserve(orders_.size());
+  for (const auto &[id, _] : orders_) {
+    ids.push_back(id);
+  }
+  for (auto id : ids) {
+    cancel_order(id);
   }
 }
 
@@ -235,12 +240,12 @@ std::size_t Orderbook::get_size() { return orders_.size(); }
 
 /*accumulate total quantity of price level from specified side of the
  * orderbook*/
-uint32_t Orderbook::get_level_quantity(order_ptr_list orderbook_side) {
+Quantity Orderbook::get_level_quantity(const order_list &orderbook_side) {
   Quantity side_total_quantity = 0;
-  for (auto &order : orderbook_side) {
+  for (const auto &order : orderbook_side) {
     side_total_quantity +=
-        order->get_remaining_quantity(); /*sum the quantity from every order on
-                                            the price level*/
+        order.get_remaining_quantity(); /*sum the quantity from every order on
+                                           the price level*/
   }
   return side_total_quantity;
 }
@@ -259,4 +264,25 @@ uint32_t Orderbook::get_level_quantity(order_ptr_list orderbook_side) {
     askInfos.push_back(levelInfo{price, level_quantity});
   }
   return OrderbookLevelInfos(bidInfos, askInfos);
+}
+
+/*print levels of the orderbook*/
+void Orderbook::print_levels() {
+  OrderbookLevelInfos orderbook_level_infos = get_levelInfos();
+
+  const levelInfos &bids = orderbook_level_infos.get_bids();
+  const levelInfos &asks = orderbook_level_infos.get_asks();
+
+  if (!bids.empty()) {
+    for (auto &level : bids) {
+      std::cout << "Bid Price: " << level.price
+                << " | Quantity: " << level.quantity << std::endl;
+    }
+  }
+  if (!asks.empty()) {
+    for (auto &level : asks) {
+      std::cout << "Ask Price: " << level.price
+                << " | Quantity: " << level.quantity << std::endl;
+    }
+  }
 }
